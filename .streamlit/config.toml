@@ -1,0 +1,6 @@
+# Settings for the WRDA Reader wherever it runs.
+[server]
+maxUploadSize = 1          # megabytes: a line-up file is a few kilobytes
+
+[browser]
+gatherUsageStats = false

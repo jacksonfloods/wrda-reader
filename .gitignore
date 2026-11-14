@@ -1,0 +1,18 @@
+# Only the reader, the parsing scripts and the papers at the top are published.
+# Everything else in this folder is the author's working material and stays private:
+# the first line ignores all of it, and the lines beginning with ! let the published parts through.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/.streamlit/
+!/reader/
+!/structure/
+
+# inside the published folders
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+/reader/prototypes/
+.streamlit/secrets.toml

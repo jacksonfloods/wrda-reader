@@ -1,0 +1,14 @@
+# Environment for developing and testing WRDA Reader (adds a test runner and a headless browser).
+# To only RUN the reader, use wrda_reader_env.yml instead.
+#   conda env create -f wrda_reader_dev_env.yml
+#   conda run -n wrda-reader-dev python -m playwright install chromium     # once; downloads a browser for the tests
+name: wrda-reader-dev
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - streamlit
+  - pytest
+  - pip
+  - pip:
+      - playwright

@@ -1,0 +1,14 @@
+# Environment for the WRDA structure scripts.
+#   conda env create -f wrda_structure_env.yml
+#   conda activate wrda-structure
+# build_1986.py and validate_1986.py use only the Python standard library.
+# poppler supplies pdftotext, which extract_lines.py and the Statutes at Large
+# text need. The pinned inputs were made with poppler 26.04.0; the build checks
+# its inputs by SHA-256, so a version that extracts different text is caught.
+name: wrda-structure
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - poppler
+  - pymupdf        # highlight_pdf.py: writes the highlights onto a copy of the PDF

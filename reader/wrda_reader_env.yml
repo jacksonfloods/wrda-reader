@@ -1,0 +1,13 @@
+# Environment for running the WRDA Reader on your own computer.
+#   conda env create -f wrda_reader_env.yml
+#   conda activate wrda-reader
+#   streamlit run app.py
+# The packages and their versions are listed once, in requirements.txt (the public site installs from it too).
+name: wrda-reader
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - -r requirements.txt
