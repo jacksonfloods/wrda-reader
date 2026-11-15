@@ -1,9 +1,9 @@
-# Water Resources Development Act (WRDA) Reader
+m# Water Resources Development Act (WRDA) Reader
 
 
 Have you yearned to read project authorizations across multiple WRDAs side by side? Conduct a boolean search across the acts? The wait is over. Vibe-coded and human-tested, WRDA Reader is a free tool, usable on the cloud or locally on your machine, that allows you to read, search, and compare Water Resources Development Acts (WRDAs).
 
-**Use it here:** _the link goes here once the site is up_
+**[WRDA Reader Online](https://wrda-reader.streamlit.app/)**
 
 Water Resources Development Acts are the laws in which Congress authorizes the water projects, studies and policies of the U.S. Army Corps of Engineers. The Congressional Research Service has a short [primer on the acts](https://www.congress.gov/crs-product/IF11322). The reader holds 14 of them, from 1986 to 2024, and the House and Senate WRDA bills of 2026.
 
