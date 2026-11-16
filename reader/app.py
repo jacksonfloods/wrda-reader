@@ -51,16 +51,20 @@ def library(folder: str, signature: tuple) -> L.Library:
     return L.load_library(folder)
 
 
+def read_beside(name: str) -> str:
+    with open(os.path.join(HERE, name), encoding="utf-8") as fh:
+        return fh.read()
+
+
 @st.cache_resource
-def panel_component():
-    with open(os.path.join(HERE, "page.js"), encoding="utf-8") as fh:
-        js = fh.read()
-    with open(os.path.join(HERE, "page.css"), encoding="utf-8") as fh:
-        css = fh.read()
+def panel_component(js: str, css: str):
+    """The panel as the browser draws it. It is kept for as long as page.js and page.css stay the same and
+    made again when either changes, so a reader that is updated while it runs (as a public site is) never
+    goes on using the panel script of the version before."""
     return st.components.v2.component("wrda_panel", js=js, css=css)
 
 
-PANEL = panel_component()
+PANEL = panel_component(read_beside("page.js"), read_beside("page.css"))
 
 
 @st.cache_resource
@@ -352,8 +356,15 @@ def on_event(slot: int):
     def cb():
         res = ss.get(f"slot_{slot}")
         ev = res.get("ev") if res else None
-        if ev and ev.get("id") is not None:
-            handle(int(ev["id"]), dict(ev))
+        if not ev:
+            return
+        pid = ev.get("id")
+        if pid is None and slot < len(ss.panels):
+            # a page that was open before the reader was updated may still run the panel script of the
+            # version before, whose clicks do not say which panel: it is the one standing in this column
+            pid = ss.panels[slot]["id"]
+        if pid is not None:
+            handle(int(pid), dict(ev))
     return cb
 
 
