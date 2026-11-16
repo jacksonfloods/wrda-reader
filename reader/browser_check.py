@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 
 from playwright.sync_api import sync_playwright
@@ -270,6 +271,71 @@ def run_checks(url):
         check("going to a hit marks every phrase on its page",
               has(0, ".marking") and "AND" in panel(0).locator(".marking").inner_text()
               and panel(0).locator(".text mark").count() >= 2)
+
+        # ---- a panel is moved by dragging its header sideways, the way a window is dragged by its title bar
+        def grip(i):
+            """A point to take hold of panel i by: the bare part of its header, or its spine."""
+            if is_thin(i):
+                b = panel(i).locator(".spine").bounding_box()
+                return b["x"] + b["width"] / 2, b["y"] + 200
+            s = panel(i).locator(".slim").bounding_box()
+            return s["x"] - 22, s["y"] + s["height"] / 2
+
+        def middle(i):
+            b = panel(i).bounding_box()
+            return b["x"] + b["width"] / 2
+
+        def drag(i, to_x, picture=None):
+            x, y = grip(i)
+            pg.mouse.move(x, y)
+            pg.mouse.down()
+            for k in range(1, 13):
+                pg.mouse.move(x + (to_x - x) * k / 12, y + 2)
+                pg.wait_for_timeout(16)
+            if picture:
+                pg.wait_for_timeout(200)
+                shot(picture)
+            pg.mouse.up()
+            pg.wait_for_timeout(250)        # the dropped panel slides into its place, then the row is laid out again
+            settle(pg)
+
+        def in_address():
+            tokens = urllib.parse.parse_qs(urllib.parse.urlsplit(pg.url).query).get("p", [])
+            return [t.lstrip(">").split("~")[0].split("|")[0].split("^")[0] for t in tokens]
+
+        def shifted():
+            return pg.evaluate("() => [...document.querySelectorAll('.st-key-row [data-testid=\"stColumn\"]')]"
+                               ".some(c => c.style.transform)")
+
+        a0, a1 = addr(0), addr(1)
+        panel(1).locator(".page").evaluate("e => { e.scrollTop = 700; }")
+        pg.wait_for_timeout(150)
+        y1 = scroll_top(1)
+        box_end = panel(0).locator(".box").bounding_box()
+        room = panel(0).locator(".slim").bounding_box()["x"] - (box_end["x"] + box_end["width"])
+        check("the header has a clear stretch beside the box to take hold of", room >= 44, f"{room:.0f} px")
+        drag(0, middle(1) + 80, picture="7-dragging.png")
+        check("dragging a header past the next panel makes the two change places",
+              a0 != a1 and (addr(0), addr(1)) == (a1, a0) and not shifted(), f"{addr(0)}, {addr(1)}")
+        check("a moved panel keeps the place its page was scrolled to", y1 > 0 and abs(scroll_top(0) - y1) <= 4,
+              f"{y1} before, {scroll_top(0)} after")
+        check("the page address follows the new order", in_address()[:2] == [a1, a0], str(in_address()[:2]))
+        x, y = grip(1)
+        pg.mouse.click(x, y)
+        settle(pg)
+        check("a click on the header that does not travel moves nothing", (addr(0), addr(1)) == (a1, a0) and not shifted())
+        drag(1, pg.viewport_size["width"] - 5)
+        check("an open panel can be carried past the collapsed ones to the end of the row",
+              [is_thin(i) for i in range(6)] == [False, True, True, True, True, False] and addr(5) == a0 and width(5) > 300,
+              f"{[is_thin(i) for i in range(6)]}, widths {[round(width(i)) for i in range(6)]}")
+        drag(1, 2)
+        check("a collapsed panel is moved by its spine, and stays collapsed",
+              [is_thin(i) for i in range(6)] == [True, False, True, True, True, False] and addr(1) == a1 and not shifted(),
+              f"{[is_thin(i) for i in range(6)]}")
+        x, y = grip(0)
+        pg.mouse.click(x, y)
+        settle(pg)
+        check("a click on a spine still opens the panel", not is_thin(0))
 
         # ---- started with a folder, the reader can save line-ups there
         check("started with a folder, Save is offered", pg.get_by_role("button", name="Save", exact=True).count() == 1)

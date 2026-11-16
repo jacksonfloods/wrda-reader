@@ -331,6 +331,14 @@ def handle(pid: int, ev: dict):
         else:
             p["thin"] = True
         ss.full = True
+    elif t == "move":
+        # the panel was dragged to another place in the row; its page, history and scroll go with it
+        try:
+            to = int(ev.get("to"))
+        except (TypeError, ValueError):
+            to = i
+        if L.move_panel(ss.panels, i, to):
+            ss.full = True
     elif t == "close":
         ss.panels.remove(p)
         if not ss.panels:
@@ -338,12 +346,14 @@ def handle(pid: int, ev: dict):
         ss.full = True
 
 
-def on_event(pid: int):
+def on_event(slot: int):
+    """What to do when the panel drawn in this column of the row reports a click. The column is kept when
+    another panel comes to stand in it, so the click itself says which panel it was made in."""
     def cb():
-        res = ss.get(f"panel_{pid}")
+        res = ss.get(f"slot_{slot}")
         ev = res.get("ev") if res else None
-        if ev:
-            handle(pid, dict(ev))
+        if ev and ev.get("id") is not None:
+            handle(int(ev["id"]), dict(ev))
     return cb
 
 
@@ -399,14 +409,17 @@ def sync_address():
     ss.synced_tokens = tokens
 
 
-def draw_panel(pid: int):
+def draw_panel(slot: int):
+    """Draw the panel that stands at this place in the row. The piece of the page that shows it belongs to
+    the place, not to the panel: when panels are moved, each place is handed its new panel and nothing is
+    taken down and put up again."""
     if USE_FRAGMENTS and ss.get("full"):
         ss.full = False
         st.rerun()          # the row itself changed: redraw the whole screen
-    p = panel_by_id(pid)
-    if p is None:
+    if slot >= len(ss.panels):
         return
-    PANEL(key=f"panel_{pid}", data=panel_data(p), on_ev_change=on_event(pid))
+    p = ss.panels[slot]
+    PANEL(key=f"slot_{slot}", data=panel_data(p), on_ev_change=on_event(slot))
     p["y"] = None            # the place to scroll back to is used once
     if USE_FRAGMENTS:
         sync_address()
@@ -475,22 +488,18 @@ def open_lineup(data, source: str):
 SPINE = 40              # px: the width of a collapsed panel
 
 
-def thin_columns_css() -> str:
-    """Style rules that make the column of each collapsed panel as narrow as a spine."""
-    rule = ('.st-key-row [data-testid="stColumn"]:nth-child(%d) '
-            "{ flex: 0 0 %dpx !important; width: %dpx !important; min-width: %dpx !important; }\n")
-    return "".join(rule % (i + 1, SPINE, SPINE, SPINE) for i, p in enumerate(ss.panels) if p.get("thin"))
-
-
 st.html("""<style>
 header[data-testid="stHeader"] { display: none; }
 [data-testid="stMainBlockContainer"] { padding: 8px 12px 0 12px; max-width: none; }
 .st-key-topbar { min-height: 44px; }
 .st-key-topbar [data-testid="stForm"] { padding: 0; border: 0; }
 .st-key-row [data-testid="stColumn"] { min-width: %dpx; }
+/* the column of a collapsed panel is as narrow as its spine; the panel marks its own column (page.js),
+   so the width changes in the same instant as what the column shows */
+.st-key-row [data-testid="stColumn"][data-wrda-thin="1"] { flex: 0 0 %dpx !important; width: %dpx !important; min-width: %dpx !important; }
 /* messages appear at the bottom right, clear of the bar and its menus */
 [data-testid="stToastContainer"] { top: auto !important; bottom: 12px; }
-%s</style>""" % (MIN_PANEL, thin_columns_css()))
+</style>""" % (MIN_PANEL, SPINE, SPINE, SPINE))
 
 saved = L.list_lineups(ss.lineups_dir)
 
@@ -574,8 +583,8 @@ if ss.notice:
 # ---------------------------------------------------------------- the row of panels
 sync_address()
 cols = st.container(key="row").columns(len(ss.panels), gap="xsmall", wrap=False)
-for col, p in zip(cols, list(ss.panels)):
+for slot, col in enumerate(cols):
     with col:
-        draw_panel(p["id"])
+        draw_panel(slot)
 ss.focus = None
 ss.reveal = None

@@ -15,11 +15,18 @@
   border: 1px solid var(--rule); border-radius: 6px; overflow: hidden;
   background: var(--paper); color: var(--ink); font-family: var(--ui);
 }
-.head { display: flex; gap: 2px; padding: 6px; background: var(--soft); border-bottom: 1px solid var(--rule); }
-.box {
-  flex: 1; min-width: 0; font: 14px/1.2 var(--ui); padding: 6px 9px; color: var(--ink); margin: 0 4px 0 2px;
-  background: var(--paper); border: 1px solid var(--rule); border-radius: 5px; outline: none;
+/* The header is also the handle the panel is moved by, like the title bar of a window: its bare
+   background can be dragged sideways. The box stops 44px short of the buttons to leave room to take hold. */
+.head {
+  display: flex; gap: 2px; padding: 6px; background: var(--soft); border-bottom: 1px solid var(--rule);
+  user-select: none; -webkit-user-select: none;
 }
+.box {
+  flex: 1; min-width: 0; font: 14px/1.2 var(--ui); padding: 6px 9px; color: var(--ink); margin: 0 48px 0 2px;
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 5px; outline: none;
+  user-select: text; -webkit-user-select: text;
+}
+.panel.dragging { box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28); }
 .box:focus { border-color: var(--st-primary-color, #c33); box-shadow: 0 0 0 1px var(--st-primary-color, #c33); }
 .b {
   flex: none; width: 26px; border: 1px solid transparent; border-radius: 5px; background: transparent;

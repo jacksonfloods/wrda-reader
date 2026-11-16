@@ -909,6 +909,18 @@ def new_panel(kind: str = "shelf", **kw) -> dict:
     return p
 
 
+def move_panel(panels: list, i: int, to: int) -> bool:
+    """Move the panel at place i of the row to place `to`, where it stands afterwards (both counted
+    from 0). A place beyond the row is brought to its end. True if the row changed."""
+    if not 0 <= i < len(panels):
+        return False
+    to = max(0, min(len(panels) - 1, to))
+    if to == i:
+        return False
+    panels.insert(to, panels.pop(i))
+    return True
+
+
 def spine_text(lib: Library, panel: dict) -> str:
     """The words down the spine of a collapsed panel: what the panel holds."""
     kind = panel.get("kind")

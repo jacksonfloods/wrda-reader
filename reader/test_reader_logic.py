@@ -326,3 +326,13 @@ def test_a_plain_search_that_finds_nothing_says_how_to_combine(lib):
     page = L.render_results(lib, search_panel("zzzq AND qqqz"))
     assert "No piece has these words" in page and "put each in quotation marks" in page
     assert "put each in quotation marks" not in L.render_results(lib, search_panel("zzzq qqqz"))
+
+
+# ---------------------------------------------------------------- moving a panel along the row
+def test_a_panel_is_moved_to_another_place_in_the_row():
+    row = [L.new_panel("piece", piece=a) for a in ("1986.401", "1996.211", "2007.3104")]
+    assert L.move_panel(row, 0, 2) and [p["piece"] for p in row] == ["1996.211", "2007.3104", "1986.401"]
+    assert L.move_panel(row, 2, 0) and [p["piece"] for p in row] == ["1986.401", "1996.211", "2007.3104"]
+    assert L.move_panel(row, 1, 99) and [p["piece"] for p in row] == ["1986.401", "2007.3104", "1996.211"]    # past the end: the end
+    assert not L.move_panel(row, 1, 1) and not L.move_panel(row, 7, 0)                                        # nothing to move
+    assert L.panels_to_tokens(row) == ["1986.401", "2007.3104", "1996.211"]                                   # the page address follows
