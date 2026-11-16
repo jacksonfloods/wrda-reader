@@ -188,7 +188,7 @@ export default function (component) {
         const t = page.querySelector("#" + CSS.escape(d.jump));
         if (t) page.scrollTop = where(t) - 34;
       } else if (d.fold !== undefined) send("fold", { a: d.fold, all: !!(e.shiftKey && el.classList.contains("sw")) });
-      else if (d.open !== undefined) send("open", { a: d.open });
+      else if (d.open !== undefined) send("open", { a: d.open, to: d.to || "" });
       else if (d.hit !== undefined) send("hit", { a: d.hit });
       else if (d.here !== undefined) send("here", { a: d.here });
       else if (d.above !== undefined) send("above", { a: d.above });

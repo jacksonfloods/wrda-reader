@@ -26,6 +26,9 @@ SCHEMA = "wrda-structure/1"
 LINEUP_FORMAT = "wrda-lineup/1"
 FILE_SUFFIX = ".structure.json"
 LINEUP_SUFFIX = ".lineup.json"
+# Notes on how a file was built (a label or heading repaired from the scan, an indent set right) are of
+# use when the files are checked, not when the acts are read: they are shown only if this is set.
+BUILD_NOTES = os.environ.get("WRDA_READER_BUILD_NOTES", "0") not in ("", "0")
 
 
 # --------------------------------------------------------------------------
@@ -63,6 +66,7 @@ class Library:
     problems: list = field(default_factory=list)    # one plain sentence per file not loaded
     order: list = field(default_factory=list)       # addresses in reading order
     norm: list = field(default_factory=list)        # search text of each piece, same order
+    cited_by: dict = field(default_factory=dict)    # address -> [Citing, ...]: where other acts cite the piece
 
 
 def structure_files(folder: str) -> list:
@@ -191,6 +195,7 @@ def load_library(folder: str) -> Library:
             lib.order.append(u["id"])
             lib.norm.append(normalize(own_words(u)))
             n += 1
+    lib.cited_by = find_citations(lib)
     return lib
 
 
@@ -729,6 +734,78 @@ def _descend(lib: Library, start: str, labels: list) -> Found:
 
 
 # --------------------------------------------------------------------------
+# What other acts say of a piece: the places where another act cites it by section
+# --------------------------------------------------------------------------
+@dataclass
+class Citing:
+    address: str        # the piece that makes the citation
+    start: int          # where the citation stands in that piece's own words (own_words())
+    end: int
+    does: str           # "modifies", "amends", "repeals", "deauthorizes", or "" when it only refers to the piece
+    beyond: str         # labels the citation names that the cited act, as passed, does not have: "(25)"
+
+
+_REF = r"\d+[A-Za-z]?(?:\([0-9A-Za-z]{1,6}\))*"
+_REF_JOIN = r"(?:\s*,\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+|\s+through\s+)"
+# "section 401(e)(3) of the Water Resources Development Act of 1986", "sections 101 and 102 of the Water
+# Resources Reform and Development Act of 2014", "section 601(a) of Public Law 99-662"
+_CITATION = re.compile(
+    r"\b[Ss]ections?\s+(" + _REF + r"(?:" + _REF_JOIN + _REF + r")*)\s+of\s+"
+    r"(?:the\s+Water\s+Resources\s+(?:Reform\s+and\s+)?Development\s+Act\s+of\s+((?:19|20)\d\d)"
+    r"|Public\s+Law\s+(\d{2,3}-\d{1,3}))")
+_DOES = (("repeals", re.compile(r"\b(?:is|are)\s+(?:hereby\s+)?repealed\b")),
+         ("deauthorizes", re.compile(r"\b(?:is|are)\s+(?:hereby\s+)?(?:deauthorized|not\s+authorized)\b")),
+         ("amends", re.compile(r"\b(?:is|are)\s+(?:further\s+|hereby\s+)?amended\b")),
+         ("modifies", re.compile(r"\b(?:is|are)\s+(?:further\s+|hereby\s+)?modified\b")))
+_PARENS = re.compile(r"\([^()]*\)")
+
+
+def what_it_does(after: str) -> str:
+    """A rough reading of what a sentence does to the provision it has just cited, from the verb that
+    follows the citation in the same clause: "(100 Stat. 4132), is modified to ..." -> "modifies".
+    "" when the sentence only refers to the provision."""
+    clause = after[:260]
+    for _ in range(3):                              # take out "(100 Stat. 4132)" and the like, nested ones too
+        clause = _PARENS.sub(" ", clause)
+    clause = re.split(r"[.;]", clause, maxsplit=1)[0]
+    for word, rx in _DOES:
+        if rx.search(clause):
+            return word
+    return ""
+
+
+def find_citations(lib: Library) -> dict:
+    """{address: [Citing, ...]}: for every piece, the places in OTHER acts that cite it by section, in
+    reading order. A citation is put on the piece it names. Where it names a paragraph the cited act does
+    not have as passed (one added later, or a label misread in a scan), it is put on the lowest piece the
+    act does have, and `beyond` holds the rest."""
+    by_law = {a.public_law: k for k, a in lib.acts.items() if a.public_law}
+    out: dict = {}
+    for addr in lib.order:
+        pc = lib.pieces[addr]
+        text = own_words(pc.unit)
+        if "ection" not in text:
+            continue
+        for m in _CITATION.finditer(text):
+            key = m.group(2) if m.group(2) else by_law.get(m.group(3))
+            if key not in lib.acts or key == pc.act:
+                continue                            # an act the reader does not hold, or the act's own section
+            does = what_it_does(text[m.end():])
+            for ref in re.findall(_REF, m.group(1)):
+                number = re.match(r"\d+[A-Za-z]?", ref).group()
+                labels = re.findall(r"\(([^()]+)\)", ref)
+                sec = _section_of(lib, key, number)
+                if sec is None:
+                    continue
+                target = _descend(lib, sec, labels).address
+                beyond = "".join(f"({x})" for x in labels[lib.pieces[target].depth:])
+                seen = out.setdefault(target, [])
+                if not any(c.address == addr and c.beyond == beyond for c in seen):
+                    seen.append(Citing(addr, m.start(), m.end(), does, beyond))
+    return out
+
+
+# --------------------------------------------------------------------------
 # The box: an address if it reads as one, otherwise words to find
 # --------------------------------------------------------------------------
 _BARE_NUMBER = re.compile(r"^(?:sec(?:tions?|s)?\.?\s*|§+\s*)?(\d+[a-z]?)((?:\s*\([^()\s]+\))*)$", re.IGNORECASE)
@@ -1201,6 +1278,55 @@ def _n_children(n: int) -> str:
     return f"{n} {'child' if n == 1 else 'children'}"
 
 
+_DOES_NOUN = (("modifies", "modification", "modifications"), ("amends", "amendment", "amendments"),
+              ("repeals", "repeal", "repeals"), ("deauthorizes", "deauthorization", "deauthorizations"))
+
+
+def _citing_words(lib: Library, c: Citing) -> str:
+    """The words around a citation, as html, with the citation itself set off."""
+    text = own_words(lib.pieces[c.address].unit).replace("\n", " ")
+    a, b = max(0, c.start - 70), min(len(text), c.end + 170)
+    before, cited, after = text[a:c.start], text[c.start:c.end], text[c.end:b]
+    lead = tail = ""
+    if a > 0:                                       # start and end at a whole word
+        lead = "…"
+        if " " in before[:30]:
+            before = before.split(" ", 1)[1]
+    if b < len(text):
+        tail = "…"
+        if " " in after[-30:]:
+            after = after.rsplit(" ", 1)[0]
+    return f'{lead}{E(_quotes(before))}<span class="cref">{E(_quotes(cited))}</span>{E(_quotes(after))}{tail}'
+
+
+def _cited_html(lib: Library, address: str) -> str:
+    """The places in other acts that cite this piece: a list that stays closed until it is clicked.
+    Each place can be read in its own section, in this panel or in a new one beside it."""
+    cited = lib.cited_by[address]
+    n = len(cited)
+    kinds = []
+    for word, one, many in _DOES_NOUN:
+        k = sum(1 for c in cited if c.does == word)
+        if k:
+            kinds.append(f"{k} {one if k == 1 else many}")
+    bills = any(lib.acts[lib.pieces[c.address].act].enacted is None for c in cited)
+    head = (f"Cited in {n} {'place' if n == 1 else 'places'} in later acts{' and bills' if bills else ''}"
+            + (f" ({', '.join(kinds)})" if kinds else ""))
+    out = [f'<details class="later"><summary>{E(head)}</summary>']
+    for c in cited:
+        A, S = E(c.address, True), E(lib.pieces[c.address].section, True)
+        does = f'<span class="cdoes">{E(c.does)}</span>' if c.does else ""
+        beyond = (f'<div class="cbeyond">It names {E(c.beyond)}, which this act as passed does not have.</div>'
+                  if c.beyond else "")
+        out.append(
+            f'<div class="cit"><div class="cline"><span class="cwho">{E(cite(lib, c.address))}</span>{does}'
+            f'<span class="acts"><a data-go="{S}" data-from="{A}" title="Read {A} in this panel, in its section; ‹ comes back">go to it</a>'
+            f'<a data-open="{S}" data-to="{A}" title="Open {A}, in its section, in a new panel beside this one">open beside ›</a>'
+            f'</span></div><div class="ctext">{_citing_words(lib, c)}</div>{beyond}</div>')
+    out.append("</details>")
+    return "".join(out)
+
+
 def _piece_html(lib: Library, address: str, closed, pattern, state: dict, top: bool) -> str:
     pc = lib.pieces[address]
     u = pc.unit
@@ -1259,19 +1385,24 @@ def _piece_html(lib: Library, address: str, closed, pattern, state: dict, top: b
             out.append(f'<p class="own next {b[1]}">{b[2]}</p>')
         else:
             out.append(b[1])
-    # --- notes: oddities the file records about this piece
+    # --- notes: oddities of the act as it is printed (a label used twice, a number skipped). How the file
+    # was built (a label or heading repaired from the scan) is shown only when BUILD_NOTES is set.
     notes = []
     if u.get("note"):
         notes.append(str(u["note"]))
-    if u.get("label_as_read"):
-        notes.append(f"The scan read this label as “{u['label_as_read']}”; it was repaired when the file was built.")
-    if u.get("heading_as_read"):
-        notes.append(f"The scan read this heading as “{u['heading_as_read']}”; it was repaired when the file was built.")
-    if u.get("between_units"):
-        notes.append("In the print these words stand between two labelled pieces; the file keeps them as a piece with no label.")
-    notes.extend(lib.acts[pc.act].flags.get(address, []))
+    if BUILD_NOTES:
+        if u.get("label_as_read"):
+            notes.append(f"The scan read this label as “{u['label_as_read']}”; it was repaired when the file was built.")
+        if u.get("heading_as_read"):
+            notes.append(f"The scan read this heading as “{u['heading_as_read']}”; it was repaired when the file was built.")
+        if u.get("between_units"):
+            notes.append("In the print these words stand between two labelled pieces; the file keeps them as a piece with no label.")
+    notes.extend(f for f in lib.acts[pc.act].flags.get(address, []) if BUILD_NOTES or "repaired" not in f.split(":", 1)[0])
     for n in notes:
         out.append(f'<div class="note"><b>Note</b> {E(n)}</div>')
+    # --- what later acts say of this piece: a list that opens under it
+    if address in lib.cited_by:
+        out.append(_cited_html(lib, address))
     # --- children, or a line saying how many are not shown
     if kids:
         if is_closed:

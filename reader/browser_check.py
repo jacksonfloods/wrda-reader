@@ -387,6 +387,30 @@ def run_hosted_checks(url):
         a = other.locator(".panel .actline .addr")
         check("the page address alone brings the line-up back in another window",
               a.count() > 0 and a.first.inner_text().strip() == "1996.301.b.9", pg.url[-60:])
+
+        # ---- what later acts say of a piece: a list that opens under it and leads to each place
+        box.click()
+        box.fill("1986 401(e)(3)")
+        box.press("Enter")
+        settle(pg)
+        later = pg.locator(".panel .later")
+        check("a piece that later acts cite has a closed list of those places under it",
+              later.count() == 1 and "Cited in 3 places" in later.locator("summary").inner_text()
+              and not later.locator(".cit").first.is_visible())
+        later.locator("summary").click()
+        pg.wait_for_timeout(250)
+        check("a click opens the list", later.locator(".cit").count() == 3 and later.locator(".cit").first.is_visible())
+        if SHOTS:
+            os.makedirs(SHOTS, exist_ok=True)
+            pg.screenshot(path=os.path.join(SHOTS, "8-cited-by.png"))
+        later.locator("[data-open]").first.click()
+        settle(pg)
+        second = pg.locator(".panel").nth(1)
+        check("each place opens beside, in its section, at the piece that cites",
+              pg.locator(".panel").count() == 2 and second.locator(".actline .addr").inner_text().strip() == "2007.3104"
+              and second.locator('[id="a-2007.3104.a"]').count() == 1)
+        if SHOTS:
+            pg.screenshot(path=os.path.join(SHOTS, "9-cited-by-beside.png"))
         errs = [m for m in msgs if m.startswith("PAGEERROR") or m.startswith("error")]
         exc = pg.locator('[data-testid="stException"]').all_inner_texts()
         check("no errors in the browser or the reader", not errs and not exc, " | ".join((errs + exc)[:3])[:500])

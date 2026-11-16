@@ -336,3 +336,48 @@ def test_a_panel_is_moved_to_another_place_in_the_row():
     assert L.move_panel(row, 1, 99) and [p["piece"] for p in row] == ["1986.401", "2007.3104", "1996.211"]    # past the end: the end
     assert not L.move_panel(row, 1, 1) and not L.move_panel(row, 7, 0)                                        # nothing to move
     assert L.panels_to_tokens(row) == ["1986.401", "2007.3104", "1996.211"]                                   # the page address follows
+
+
+# ---------------------------------------------------------------- what later acts say of a piece
+def test_citations_by_other_acts_are_put_on_the_piece_they_name(lib):
+    cited = {c.address: c for c in lib.cited_by["1986.401.e.3"]}
+    assert list(cited) == ["2007.3104.a", "2016.1322.b.4.A", "2026H.210.c.1"]      # reading order, oldest act first
+    assert cited["2007.3104.a"].does == "modifies" and cited["2016.1322.b.4.A"].does == ""
+    c = cited["2007.3104.a"]
+    assert L.own_words(lib.pieces[c.address].unit)[c.start:c.end] == \
+        "section 401(e)(3) of the Water Resources Development Act of 1986"
+    for a, places in lib.cited_by.items():
+        assert all(lib.pieces[c.address].act != lib.pieces[a].act for c in places)   # never the act's own sections
+        assert len({(c.address, c.beyond) for c in places}) == len(places)           # and no place twice
+
+
+def test_what_a_citing_sentence_does():
+    assert L.what_it_does(" (100 Stat. 4132), is modified to authorize the Secretary") == "modifies"
+    assert L.what_it_does(" (33 U.S.C. 2309a(a)) is amended by striking") == "amends"
+    assert L.what_it_does(", as modified by section 3104 of the Water Resources Development Act of 2007") == ""
+    assert L.what_it_does(" (100 Stat. 4134). The project is modified to") == ""     # the next sentence is another matter
+    assert L.what_it_does(" is repealed.") == "repeals"
+    assert L.what_it_does(" are not authorized after the date of enactment") == "deauthorizes"
+
+
+def test_the_list_of_citing_places_under_a_piece(lib):
+    page = L.render_piece(lib, "1986.401.e.3")
+    assert '<details class="later"><summary>Cited in 3 places in later acts and bills (1 modification)</summary>' in page
+    assert 'data-go="2007.3104" data-from="2007.3104.a"' in page       # read in its section, in this panel
+    assert 'data-open="2007.3104" data-to="2007.3104.a"' in page       # or in a new panel beside this one
+    assert '<span class="cref">section 401(e)(3) of the Water Resources Development Act of 1986</span>' in page
+    uncited = next(a for a in lib.order if a not in lib.cited_by and not lib.pieces[a].unit.get("children"))
+    assert '<details class="later">' not in L.render_piece(lib, uncited)
+
+
+def test_a_citation_of_a_paragraph_the_act_does_not_have_goes_on_the_piece_above(lib):
+    a, c = next((a, c) for a, places in lib.cited_by.items() for c in places if c.beyond)
+    assert a in lib.pieces and c.beyond.startswith("(")
+    assert "which this act as passed does not have" in L.render_piece(lib, a)
+
+
+def test_notes_on_how_a_file_was_built_are_not_shown_to_readers(lib, monkeypatch):
+    assert "repaired" not in L.render_piece(lib, "1988.4.f")
+    assert "prints two subsections" in L.render_piece(lib, "1986.204.e-2nd")      # an oddity of the print stays
+    monkeypatch.setattr(L, "BUILD_NOTES", True)
+    assert "Label repaired" in L.render_piece(lib, "1988.4.f")

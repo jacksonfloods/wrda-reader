@@ -325,6 +325,8 @@ def handle(pid: int, ev: dict):
             new = give_id(L.new_panel("piece", piece=a, closed=[], above=[], mark=words or None))
             if words and p.get("whole"):
                 new["whole"] = True
+            if ev.get("to") in LIB.pieces:          # opened to show one piece inside it: go there
+                new["to"] = ev["to"]
         ss.panels.insert(i + 1, new)          # right beside the panel it came from
         reveal(new["id"])
         ss.full = True
