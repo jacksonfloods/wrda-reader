@@ -46,14 +46,21 @@ st.set_page_config(page_title="WRDA Reader", layout="wide", initial_sidebar_stat
 ss = st.session_state
 
 
-@st.cache_resource(show_spinner="Reading the acts…")
-def library(folder: str, signature: tuple) -> L.Library:
+@st.cache_resource(show_spinner="Reading the acts…", max_entries=2)
+def library(folder: str, signature: tuple, logic: str) -> L.Library:
+    """The acts in the folder, read once and kept. They are read again when a file in the folder changes
+    (`signature`) and when reader_logic.py changes (`logic`): a reader updated while it runs, as a public
+    site is, must not go on using acts read by the code of the version before. At most two readings are
+    kept, so updates do not pile up old copies in memory."""
     return L.load_library(folder)
 
 
 def read_beside(name: str) -> str:
     with open(os.path.join(HERE, name), encoding="utf-8") as fh:
         return fh.read()
+
+
+LOGIC = hashlib.sha256(read_beside("reader_logic.py").encode("utf-8")).hexdigest()
 
 
 @st.cache_resource
@@ -138,7 +145,7 @@ def get_library():
     folder = ss.data_dir
     if not folder or not os.path.isdir(folder):
         return None, ([f"There is no folder at {folder}."] if folder else [])
-    lib = library(folder, L.folder_signature(folder))
+    lib = library(folder, L.folder_signature(folder), LOGIC)
     return lib, lib.problems
 
 
