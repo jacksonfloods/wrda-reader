@@ -1,4 +1,4 @@
-m# Water Resources Development Act (WRDA) Reader
+# Water Resources Development Act (WRDA) Reader
 
 
 Have you yearned to read project authorizations across multiple WRDAs side by side? Conduct a boolean search across the acts? The wait is over. Vibe-coded and human-tested, WRDA Reader is a free tool, usable on the cloud or locally on your machine, that allows you to read, search, and compare Water Resources Development Acts (WRDAs).
