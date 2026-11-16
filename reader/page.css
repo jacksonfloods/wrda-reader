@@ -132,7 +132,10 @@ mark { background: var(--hi); color: #1c1c1c; padding: 0 1px; border-radius: 2px
 /* what later acts say of a piece: a list that stays closed until it is clicked */
 .later { margin: 0.25em 0 0.45em 1em; text-indent: 0; }
 .later > summary { width: fit-content; cursor: pointer; font: 12px/1.5 var(--ui); color: var(--dim); padding: 1px 7px 1px 3px; border-radius: 4px; }
-.later > summary:hover, .later[open] > summary { color: var(--ink); background: var(--soft); }
+.later > summary:hover { color: var(--ink); background: var(--soft); }
+/* opened, the list is set off as a note: on the same gray as the other notes, with their rule down its left side */
+.later[open] { background: var(--soft); border-left: 3px solid #c9a227; padding: 3px 10px 5px 6px; }
+.later[open] > summary { color: var(--ink); }
 .cit { margin: 6px 0 8px 6px; padding-left: 9px; border-left: 2px solid var(--rule); }
 .cline { display: flex; align-items: baseline; gap: 8px; font: 13px/1.5 var(--ui); }
 .cwho { font-weight: 600; color: var(--ink); }
